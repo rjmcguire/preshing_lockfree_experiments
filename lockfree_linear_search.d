@@ -50,14 +50,40 @@ void worker() {
 
 void main() {
 	auto sw = StopWatch.create();
-	worker();
-	worker();
-	worker();
+	//worker();
+	//worker();
+	//worker();
+	import std.parallelism : taskPool, task;
+	//size_t[1024] input;
+	auto input = new size_t[102];
+	foreach (ref i; 0 .. input.length) {
+		input[i] = i;
+	}
+
+	//taskPool.put(task!worker(input));
+	//taskPool.put(task!worker(input));
+	foreach (i, k; taskPool.parallel(input, 100)) {
+		static size_t n;
+		if (!store.setEntry(k, cast(ulong)&n)) {
+			writeln("out of space @", i);
+		}
+	}
+
 	sw.next();
 	writeln("waiting");
 	thread_joinAll();
 	sw.next();
-	writeln(store);
+	//writeln(store);
+	size_t count;
+	size_t[][size_t] nums;
+	foreach (item; store.m_entries) {
+		nums[item.value] ~= item.key;
+		count++;
+	}
+	foreach (n; nums) {
+		writeln("nums: ", n);
+	}
+	writeln("count: ", count);
 	sw.print();
 }
 
