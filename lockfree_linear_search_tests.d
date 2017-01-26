@@ -109,8 +109,8 @@ unittest {
 	// TODO: set values to a unique value per set of 20
 	foreach (i, ref k; myTaskPool.parallel(input, 20)) {
 		import std.random;
-		size_t n = uniform(0, size_t.max);
-		k[1] = n;
+		static size_t n;
+		k[1] = cast(size_t)&n;
 	}
 	foreach (i, k; myTaskPool.parallel(input, 20)) {
 		if (!store.setEntry(k[0], k[1])) {
