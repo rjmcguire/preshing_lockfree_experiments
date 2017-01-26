@@ -31,18 +31,20 @@ struct Store(size_t MAX_ENTRIES) {
 	}
 }
 
-__gshared Store!100 store;
+enum SIZE = 102;
+
+__gshared Store!SIZE store;
 
 void main() {
 	auto sw = StopWatch.create();
 	import std.parallelism : taskPool, task;
-	auto input = new size_t[102];
+	auto input = new size_t[SIZE];
 	foreach (ref i; 0 .. input.length) {
 		input[i] = i;
 	}
 	sw.next();
 	writeln("doing parallel inserts");
-	foreach (i, k; taskPool.parallel(input, 100)) {
+	foreach (i, k; taskPool.parallel(input, 20)) {
 		static size_t n;
 		if (!store.setEntry(k, cast(ulong)&n)) {
 			writeln("out of space @", i);
