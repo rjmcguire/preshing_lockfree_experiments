@@ -45,20 +45,21 @@ struct Store(size_t MAX_ENTRIES) {
 	}
 }
 
-enum SIZE = 1024;
+enum SIZE = 10240;
 
 shared Store!SIZE store;
 
 void main() {
+	import std.parallelism : taskPool, task, defaultPoolThreads;
+	defaultPoolThreads(100);
 	auto sw = StopWatch.create();
-	import std.parallelism : taskPool, task;
 	auto input = new size_t[SIZE];
 	foreach (ref i; 0 .. input.length) {
 		input[i] = i+1;
 	}
 	sw.next();
 	writeln("doing parallel inserts");
-	foreach (i, k; taskPool.parallel(input, 20)) {
+	foreach (i, k; taskPool.parallel(input, 5)) {
 		static size_t n;
 		if (!store.setEntry(k, cast(ulong)&n)) {
 			writeln("out of space @", i);
@@ -70,14 +71,20 @@ void main() {
 
 	size_t count;
 	size_t[][size_t] unique_stacks;
+	size_t[size_t] uniqcheck;
 	foreach (item; store.m_entries) {
 		unique_stacks[store.getEntry(item.key)] ~= item.key;
+		uniqcheck[item.key] = item.value;
 		count++;
+	}
+	foreach (item; store.m_entries) {
+		assert(uniqcheck[item.key] == item.value, "multiple tasks inserted the same value");
 	}
 	writeln("blame stacks:");
 	foreach (old_n_ptr_addr, stack; unique_stacks) {
 		writeln(old_n_ptr_addr, ": ", stack);
 	}
+	writeln("unique_stacks:", unique_stacks.length);
 	writeln("count: ", count);
 	sw.print();
 }
