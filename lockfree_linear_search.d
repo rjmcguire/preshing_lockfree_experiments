@@ -50,8 +50,9 @@ enum SIZE = 10240;
 shared Store!SIZE store;
 
 void main() {
-	import std.parallelism : taskPool, task, defaultPoolThreads;
-	defaultPoolThreads(100);
+	import std.parallelism : TaskPool, task;
+	auto myTaskPool = new TaskPool(100);
+	myTaskPool.isDaemon(true);
 	auto sw = StopWatch.create();
 	auto input = new size_t[SIZE];
 	foreach (ref i; 0 .. input.length) {
@@ -59,7 +60,7 @@ void main() {
 	}
 	sw.next();
 	writeln("doing parallel inserts");
-	foreach (i, k; taskPool.parallel(input, 5)) {
+	foreach (i, k; myTaskPool.parallel(input, 5)) {
 		static size_t n;
 		if (!store.setEntry(k, cast(ulong)&n)) {
 			writeln("out of space @", i);
@@ -93,12 +94,14 @@ void main() {
 unittest {
 	writeln("test1");
 	shared Store!(2048) store;
-	import std.parallelism : taskPool, task;
+	import std.parallelism : TaskPool, task, totalCPUs;
+	auto myTaskPool = new TaskPool(totalCPUs);
+	myTaskPool.isDaemon(true);
 	auto input = new size_t[2048];
 	foreach (i; 0 .. input.length) {
 		input[i] = i+1;
 	}
-	foreach (i, k; taskPool.parallel(input, 20)) {
+	foreach (i, k; myTaskPool.parallel(input, 20)) {
 		if (!store.setEntry(k, k)) {
 			writeln("out of space @", i);
 			throw new Exception("not enough space in storage");
@@ -115,19 +118,21 @@ unittest {
 unittest {
 	writeln("test2");
 	shared Store!(2048) store;
-	import std.parallelism : taskPool, task;
+	import std.parallelism : TaskPool, task, totalCPUs;
+	auto myTaskPool = new TaskPool(totalCPUs);
+	myTaskPool.isDaemon(true);
 	auto input = new size_t[2][2048];
 	// setup values
 	foreach (i; 0 .. 2048) {
 		input[i][0] = i+1;
 	}
 	// TODO: set values to a unique value per set of 20
-	foreach (i, ref k; taskPool.parallel(input, 20)) {
+	foreach (i, ref k; myTaskPool.parallel(input, 20)) {
 		import std.random;
 		size_t n = uniform(0, size_t.max);
 		k[1] = n;
 	}
-	foreach (i, k; taskPool.parallel(input, 20)) {
+	foreach (i, k; myTaskPool.parallel(input, 20)) {
 		if (!store.setEntry(k[0], k[1])) {
 			writeln("out of space @", i);
 			throw new Exception("not enough space in storage");
