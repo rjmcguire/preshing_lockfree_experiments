@@ -33,55 +33,33 @@ struct Store(size_t MAX_ENTRIES) {
 
 __gshared Store!100 store;
 
-import core.thread;
-void worker() {
-	new Thread({
-		import std.random;
-		size_t k;
-		foreach (i; 0..99) {
-			k = uniform(100, 999);
-			if (!store.setEntry(k,22)) {
-				writeln("out of space @ ", i);
-				break;
-			}
-		}
-	}).start();
-}
-
 void main() {
 	auto sw = StopWatch.create();
-	//worker();
-	//worker();
-	//worker();
 	import std.parallelism : taskPool, task;
-	//size_t[1024] input;
 	auto input = new size_t[102];
 	foreach (ref i; 0 .. input.length) {
 		input[i] = i;
 	}
-
-	//taskPool.put(task!worker(input));
-	//taskPool.put(task!worker(input));
+	sw.next();
+	writeln("doing parallel inserts");
 	foreach (i, k; taskPool.parallel(input, 100)) {
 		static size_t n;
 		if (!store.setEntry(k, cast(ulong)&n)) {
 			writeln("out of space @", i);
 		}
 	}
+	sw.next();
+	writeln("back in main");
 
-	sw.next();
-	writeln("waiting");
-	thread_joinAll();
-	sw.next();
-	//writeln(store);
 	size_t count;
-	size_t[][size_t] nums;
+	size_t[][size_t] unique_stacks;
 	foreach (item; store.m_entries) {
-		nums[item.value] ~= item.key;
+		unique_stacks[item.value] ~= item.key;
 		count++;
 	}
-	foreach (n; nums) {
-		writeln("nums: ", n);
+	writeln("blame stacks:");
+	foreach (old_n_ptr_addr, stack; unique_stacks) {
+		writeln(old_n_ptr_addr, ": ", stack);
 	}
 	writeln("count: ", count);
 	sw.print();
@@ -90,7 +68,7 @@ void main() {
 
 
 struct StopWatch {
-	import std.datetime : StopWatch;
+	import std.datetime : StopWatch, TickDuration;
 	StopWatch sw;
 	TickDuration[] times;
 	@disable this();
