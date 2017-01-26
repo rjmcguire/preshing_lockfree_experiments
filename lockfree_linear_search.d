@@ -2,13 +2,13 @@ import core.atomic;
 import std.stdio;
 import std.exception;
 
-struct Entry {
-	size_t key;
-	size_t value;
-}
 
 shared
 struct Store(size_t MAX_ENTRIES) {
+	private struct Entry {
+		size_t key;
+		size_t value;
+	}
 	Entry[MAX_ENTRIES] m_entries;
 	// returns true if there was space for the value
 	bool setEntry(size_t key, size_t value) {
@@ -45,11 +45,31 @@ struct Store(size_t MAX_ENTRIES) {
 	}
 }
 
-enum SIZE = 10240;
 
-shared Store!SIZE store;
 
-void main() {
+unittest {
+	struct StopWatch {
+		import std.datetime : StopWatch, TickDuration;
+		StopWatch sw;
+		TickDuration[] times;
+		@disable this();
+		static auto create() {
+			typeof(this) ret = this.init;
+			ret.sw.start();
+			ret.times ~= ret.sw.peek();
+			return ret;
+		}
+		void next() {
+			times ~= sw.peek() - times[$-1];
+		}
+		void print() {
+			foreach (t; times) {
+				writeln(t.usecs, "us");
+			}
+		}
+	}
+	enum SIZE = 10240;
+	shared Store!SIZE store;
 	import std.parallelism : TaskPool, task;
 	auto myTaskPool = new TaskPool(100);
 	myTaskPool.isDaemon(true);
@@ -142,25 +162,4 @@ unittest {
 		assert(store.getEntry(item[0]) == item[1]);
 	}
 	writeln("test2: okay");
-}
-
-struct StopWatch {
-	import std.datetime : StopWatch, TickDuration;
-	StopWatch sw;
-	TickDuration[] times;
-	@disable this();
-	static auto create() {
-		typeof(this) ret = this.init;
-		ret.sw.start();
-		ret.times ~= ret.sw.peek();
-		return ret;
-	}
-	void next() {
-		times ~= sw.peek() - times[$-1];
-	}
-	void print() {
-		foreach (t; times) {
-			writeln(t.usecs, "us");
-		}
-	}
 }
