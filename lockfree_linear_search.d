@@ -46,6 +46,7 @@ void main() {
 		static size_t n;
 		if (!store.setEntry(k, cast(ulong)&n)) {
 			writeln("out of space @", i);
+			throw new Exception("not enough space in storage");
 		}
 	}
 	sw.next();
