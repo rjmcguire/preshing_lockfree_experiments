@@ -1,15 +1,18 @@
 import core.atomic;
 import std.stdio;
+import std.exception;
 
 struct Entry {
 	size_t key;
 	size_t value;
 }
 
+shared
 struct Store(size_t MAX_ENTRIES) {
-	shared Entry[MAX_ENTRIES] m_entries;
+	Entry[MAX_ENTRIES] m_entries;
 	// returns true if there was space for the value
 	bool setEntry(size_t key, size_t value) {
+		enforce(key != 0, "empty keys are not allowed");
 		foreach (ref entry; m_entries) {
 			//auto probedKey = atomicLoad!(MemoryOrder.acq)(entry.key); // correct optimised memory order?
 			auto probedKey = atomicLoad(entry.key);
@@ -29,18 +32,29 @@ struct Store(size_t MAX_ENTRIES) {
 		}
 		return false;
 	}
+	size_t getEntry(size_t key) {
+		enforce(key != 0, "empty keys are not allowed");
+		foreach (ref entry; m_entries) {
+			//auto probedKey = atomicLoad!(MemoryOrder.acq)(entry.key); // correct optimised memory order?
+			auto probedKey = atomicLoad(entry.key);
+			if (probedKey == key) {
+				return entry.value;
+			}
+		}
+		return size_t.init;
+	}
 }
 
-enum SIZE = 102;
+enum SIZE = 1024;
 
-__gshared Store!SIZE store;
+shared Store!SIZE store;
 
 void main() {
 	auto sw = StopWatch.create();
 	import std.parallelism : taskPool, task;
 	auto input = new size_t[SIZE];
 	foreach (ref i; 0 .. input.length) {
-		input[i] = i;
+		input[i] = i+1;
 	}
 	sw.next();
 	writeln("doing parallel inserts");
@@ -57,7 +71,7 @@ void main() {
 	size_t count;
 	size_t[][size_t] unique_stacks;
 	foreach (item; store.m_entries) {
-		unique_stacks[item.value] ~= item.key;
+		unique_stacks[store.getEntry(item.key)] ~= item.key;
 		count++;
 	}
 	writeln("blame stacks:");
@@ -68,7 +82,55 @@ void main() {
 	sw.print();
 }
 
+// test that values exactly match keys
+unittest {
+	writeln("test1");
+	shared Store!(2048) store;
+	import std.parallelism : taskPool, task;
+	auto input = new size_t[2048];
+	foreach (i; 0 .. input.length) {
+		input[i] = i+1;
+	}
+	foreach (i, k; taskPool.parallel(input, 20)) {
+		if (!store.setEntry(k, k)) {
+			writeln("out of space @", i);
+			throw new Exception("not enough space in storage");
+		}
+	}
 
+
+	foreach (i, k; store.m_entries) {
+		assert(store.getEntry(k.key)==k.value);
+	}
+	writeln("test1: okay");
+}
+// test that values stay set according to who set them
+unittest {
+	writeln("test2");
+	shared Store!(2048) store;
+	import std.parallelism : taskPool, task;
+	auto input = new size_t[2][2048];
+	// setup values
+	foreach (i; 0 .. 2048) {
+		input[i][0] = i+1;
+	}
+	// TODO: set values to a unique value per set of 20
+	foreach (i, ref k; taskPool.parallel(input, 20)) {
+		import std.random;
+		size_t n = uniform(0, size_t.max);
+		k[1] = n;
+	}
+	foreach (i, k; taskPool.parallel(input, 20)) {
+		if (!store.setEntry(k[0], k[1])) {
+			writeln("out of space @", i);
+			throw new Exception("not enough space in storage");
+		}
+	}
+	foreach (item; input) {
+		assert(store.getEntry(item[0]) == item[1]);
+	}
+	writeln("test2: okay");
+}
 
 struct StopWatch {
 	import std.datetime : StopWatch, TickDuration;
@@ -86,7 +148,7 @@ struct StopWatch {
 	}
 	void print() {
 		foreach (t; times) {
-			writeln(t);
+			writeln(t.usecs, "us");
 		}
 	}
 }
